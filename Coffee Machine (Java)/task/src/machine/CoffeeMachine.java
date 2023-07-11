@@ -3,6 +3,10 @@ package machine;
 import java.util.Scanner;
 
 public class CoffeeMachine {
+    public enum MachineState {
+        OFF, MAIN, BUYING, FILLING_WATER, FILLING_MILK, FILLING_COFFEE, FILLING_CUPS
+    }
+    private MachineState state;
     int waterSupply;
     int milkSupply;
     int beansSupply;
@@ -14,23 +18,11 @@ public class CoffeeMachine {
 
     public static void main(String[] args) {
         CoffeeMachine coffeeMachine = new CoffeeMachine(400, 540, 120, 9, 550);
+        Scanner scanner = new Scanner(System.in);
 
-        String action;
-        do {
-            action = coffeeMachine.chooseAction();
-            switch (action) {
-                case "fill" -> coffeeMachine.addSupply();
-                case "take" -> coffeeMachine.emptyCash();
-                case "buy" -> {
-                    Recipe choice = coffeeMachine.takeOrder();
-                    if (choice == null) continue;
-                    if (coffeeMachine.hasEnoughResources(choice)) {
-                        coffeeMachine.makeCoffee(choice);
-                    }
-                }
-                case "remaining" -> coffeeMachine.getState();
-            }
-        } while (!action.equals("exit"));
+        while (coffeeMachine.isWorking()) {
+            coffeeMachine.execute(scanner.nextLine());
+        }
     }
 
     CoffeeMachine(int waterSupply, int milkSupply, int beansSupply, int disposableCups, int cash) {
@@ -39,6 +31,7 @@ public class CoffeeMachine {
         this.beansSupply = beansSupply;
         this.disposableCups = disposableCups;
         this.cash = cash;
+        this.setMainState();
     }
 
     static class Recipe {
@@ -53,6 +46,79 @@ public class CoffeeMachine {
             this.beansPerCup = beansPerCup;
             this.price = price;
         }
+    }
+
+    boolean isWorking() {
+        return state != MachineState.OFF;
+    }
+
+    void execute(String input) {
+        switch (state) {
+            case MAIN -> this.setState(input);
+            case FILLING_WATER -> {
+                this.waterSupply += Integer.parseInt(input);
+                System.out.print("Write how many ml of milk do you want to add:\n> ");
+                state = MachineState.FILLING_MILK;
+            }
+            case FILLING_MILK -> {
+                this.milkSupply += Integer.parseInt(input);
+                System.out.print("Write how many grams of coffee beans do you want to add:\n> ");
+                state = MachineState.FILLING_COFFEE;
+            }
+            case FILLING_COFFEE -> {
+                this.beansSupply += Integer.parseInt(input);
+                System.out.print("Write how many disposable cups of coffee do you want to add:\n> ");
+                state = MachineState.FILLING_CUPS;
+            }
+            case FILLING_CUPS -> {
+                this.disposableCups += Integer.parseInt(input);
+                setMainState();
+            }
+            case BUYING -> {
+                if (input.equals("back")) {
+                    this.setMainState();
+                    break;
+                }
+                Recipe choice = input.equals("1") ? this.espressoRecipe : input.equals("2") ? this.lateRecipe : this.cappuccinoRecipe;
+                if (hasEnoughResources(choice)) {
+                    makeCoffee(choice);
+                }
+                setMainState();
+            }
+            default -> {
+            }
+        }
+    }
+
+    public void setState(String command) {
+        switch (command) {
+            case "remaining" -> {
+                getState();
+                setMainState();
+            }
+            case "buy" -> {
+                System.out.print("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino:\n> ");
+                state = MachineState.BUYING;
+            }
+            case "fill" -> {
+                System.out.print("Write how many ml of water do you want to add:\n> ");
+                state = MachineState.FILLING_WATER;
+            }
+            case "take" -> {
+                emptyCash();
+                setMainState();
+            }
+            case "exit" -> state = MachineState.OFF;
+            default -> {
+                System.out.println("Unexpected action.");
+                setMainState();
+            }
+        }
+    }
+
+    void setMainState() {
+        state = MachineState.MAIN;
+        System.out.print("\nWrite action (buy, fill, take, remaining, exit):\n> ");
     }
 
     void makeCoffee(Recipe recipe) {
@@ -86,15 +152,6 @@ public class CoffeeMachine {
         );
     }
 
-    String chooseAction() {
-        System.out.println("Write action (buy, fill, take, remaining, exit):");
-        Scanner scanner = new Scanner(System.in);
-        while (!scanner.hasNextLine()) {
-            System.out.println("Please enter an action!");
-        }
-        return scanner.nextLine();
-    }
-
     boolean hasEnoughResources(Recipe recipe) {
         if (this.waterSupply >= recipe.waterPerCup) {
             if (this.milkSupply >= recipe.milkPerCup) {
@@ -118,66 +175,5 @@ public class CoffeeMachine {
             System.out.println("Sorry, not enough water!");
         }
         return false;
-    }
-
-    Recipe takeOrder() {
-        System.out.println("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino:");
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextInt() && scanner.next().equals("back")) {
-            return null;
-        }
-        int input = scanner.nextInt();
-        return input == 1 ? this.espressoRecipe : input == 2 ? this.lateRecipe : this.cappuccinoRecipe;
-    }
-
-    void addSupply() {
-        this.waterSupply += addWater();
-        this.milkSupply += addMilk();
-        this.beansSupply += addBeans();
-        this.disposableCups += addCups();
-    }
-
-    int addWater() {
-        System.out.println("Write how many ml of water you want to add:");
-        Scanner scanner = new Scanner(System.in);
-
-        while (!scanner.hasNextInt()) {
-            System.out.println("Please enter a number!");
-        }
-
-        return scanner.nextInt();
-    }
-
-    int addMilk() {
-        System.out.println("Write how many ml of milk you want to add:");
-        Scanner scanner = new Scanner(System.in);
-
-        while (!scanner.hasNextInt()) {
-            System.out.println("Please enter a number!");
-        }
-
-        return scanner.nextInt();
-    }
-
-    int addBeans() {
-        System.out.println("Write how many grams of coffee beans you want to add: ");
-        Scanner scanner = new Scanner(System.in);
-
-        while (!scanner.hasNextInt()) {
-            System.out.println("Please enter a number!");
-        }
-
-        return scanner.nextInt();
-    }
-
-    int addCups() {
-        System.out.println("Write how many disposable cups you want to add:");
-        Scanner scanner = new Scanner(System.in);
-
-        while (!scanner.hasNextInt()) {
-            System.out.println("Please enter a number!");
-        }
-
-        return scanner.nextInt();
     }
 }
